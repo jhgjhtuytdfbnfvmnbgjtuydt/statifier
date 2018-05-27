@@ -9,13 +9,14 @@ import { url } from 'inspector';
 import { HashMap } from './utils/hashmap';
 import * as pathUtils from './utils/pathUtils';
 import * as httpUtils from './utils/httpUtils';
+import { AssetsDownloader } from './utils/assetsDownloader';
 
 const startUrl = new URL("https://www.davideguida.com"),
     domainToReplace = "https://www.davideguida.com",
     destDomain = "https://testdg.azurewebsites.net",
     basePath = path.join(__dirname, "/data/");
 
-const processSite = (startUrl:URL) =>{
+const processSite = (startUrl:URL):Promise<boolean> => {
     const rootPath = path.join(basePath, startUrl.hostname),
         processedUrls = new HashMap();
 
@@ -54,46 +55,27 @@ const processSite = (startUrl:URL) =>{
         return Promise.all(promises);
     },
 
-    processCss = (html:string): Promise<boolean> => {
-        const $ = cheerio.load(html),
-            tags = $('link[type="text/css"]'),
-            urls = new HashMap(),
-            processed = new HashMap(),
-            promises = new Array<Promise<boolean>>();
+    downloadAssets = (html:string): Promise<boolean> => {
+        const downloader = new AssetsDownloader(domainToReplace, rootPath),
+            css = downloader.run(html, {
+                tagsSelector: 'link[type="text/css"]',
+                assetUrlExtractor: t => t.attr('href')
+            }),
+            img = downloader.run(html, {
+                tagsSelector: 'img',
+                assetUrlExtractor: t => t.attr('src')
+            }),
+            js = downloader.run(html, {
+                tagsSelector: 'script[type="text/javascript"]',
+                assetUrlExtractor: t => t.attr('src')
+            });
 
-        $(tags).each(function(i, link){
-            const linkUrl = $(link).attr('href');
-            if(linkUrl && linkUrl.trim().length && linkUrl.indexOf(domainToReplace) > -1){
-                urls.add(linkUrl);
-            }
-        });
-
-        urls.foreach(u => {
-            if(processed.contains(u))
-                return;
-            const srcUrl = new URL(u),
-                srcFilePath = path.dirname(srcUrl.pathname),
-                destFileFolder = path.join(rootPath, srcFilePath),
-                filename = path.basename(srcUrl.pathname),
-                destFilePath = path.join(destFileFolder, filename);
-
-            pathUtils.ensurePath(destFileFolder);
-            return httpUtils.downloadFile(u, destFilePath)
-                            .then(destPath =>{
-                                processed.add(u);
-                                return true;
-                            });
-        });
-
-        return Promise.all(promises).then(p =>{
-            return true;
-        });
+        return Promise.all([css, js, img]).then(() => true);
     },
 
     processUrl = (url:Url):Promise<boolean> => {
         if(processedUrls.contains(url.pathname.toLowerCase() ) ){
-            console.log(`url ${url} already processed!`);
-            return;
+            return Promise.resolve(true);
         }
 
         processedUrls.add(url.pathname.toLowerCase());
@@ -125,7 +107,7 @@ const processSite = (startUrl:URL) =>{
             }
             fs.writeFileSync(filePath, result);
 
-            processCss(html);
+            downloadAssets(html);
 
             return processInternalLinks(html).then(() =>{
                 return true;
@@ -144,7 +126,9 @@ const processSite = (startUrl:URL) =>{
 
     fs.mkdirSync(rootPath);
 
-    processUrl(startUrl);
+    return processUrl(startUrl);
 };
 
-processSite(startUrl);
+processSite(startUrl).then(() =>{
+    console.log(`site ${startUrl} processed!`);
+});
