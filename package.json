@@ -1,0 +1,23 @@
+{
+  "name": "statifier",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bin/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Davide Guida",
+  "license": "ISC",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.2",
+    "del": "^3.0.0",
+    "request": "^2.87.0",
+    "request-promise": "^4.2.2"
+  },
+  "devDependencies": {
+    "@types/cheerio": "^0.22.7",
+    "@types/del": "^3.0.1",
+    "@types/request": "^2.47.0",
+    "@types/request-promise": "^4.1.41"
+  }
+}
