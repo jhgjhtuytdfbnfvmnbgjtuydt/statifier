@@ -7,13 +7,13 @@ export function downloadFile(fromUrl:string, destPath:string){
         fs.unlinkSync(destPath);
     }
 
-    return new Promise((resolve,reject) =>{
+    return new Promise<string>((resolve,reject) =>{
         const file = fs.createWriteStream(destPath),
             cb = (response:any) =>{
                 response.pipe(file);
                 file.on('finish', function() {
                     file.close();
-                    resolve();
+                    resolve(destPath);
                 });
             }, onError = (err:any) =>{
                 fs.unlinkSync(destPath);

@@ -57,7 +57,9 @@ const processSite = (startUrl:URL) =>{
     processCss = (html:string): Promise<boolean> => {
         const $ = cheerio.load(html),
             tags = $('link[type="text/css"]'),
-            urls = new HashMap();
+            urls = new HashMap(),
+            processed = new HashMap(),
+            promises = new Array<Promise<boolean>>();
 
         $(tags).each(function(i, link){
             const linkUrl = $(link).attr('href');
@@ -66,7 +68,9 @@ const processSite = (startUrl:URL) =>{
             }
         });
 
-        const promises = urls.map(u => {
+        urls.foreach(u => {
+            if(processed.contains(u))
+                return;
             const srcUrl = new URL(u),
                 srcFilePath = path.dirname(srcUrl.pathname),
                 destFileFolder = path.join(rootPath, srcFilePath),
@@ -74,7 +78,11 @@ const processSite = (startUrl:URL) =>{
                 destFilePath = path.join(destFileFolder, filename);
 
             pathUtils.ensurePath(destFileFolder);
-            return httpUtils.downloadFile(u, destFilePath);
+            return httpUtils.downloadFile(u, destFilePath)
+                            .then(destPath =>{
+                                processed.add(u);
+                                return true;
+                            });
         });
 
         return Promise.all(promises).then(p =>{
