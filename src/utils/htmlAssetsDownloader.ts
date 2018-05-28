@@ -6,8 +6,8 @@ import * as pathUtils from './pathUtils';
 import * as httpUtils from './httpUtils';
 
 export interface HtmlAssetsDownloaderOptions{
-    tagsSelector:string;
-    assetUrlExtractor: (tag:Cheerio) => string;
+    readonly tagsSelector:string;
+    readonly assetUrlExtractor: (tag:Cheerio) => string;
 }
 
 export class HtmlAssetsDownloader{
@@ -30,19 +30,11 @@ export class HtmlAssetsDownloader{
         urls.foreach(u => {
             if(processed.contains(u))
                 return;
-
-            const srcUrl = new URL(u),
-                srcFilePath = path.dirname(srcUrl.pathname),
-                destFileFolder = path.join(this._rootPath, srcFilePath),
-                filename = path.basename(srcUrl.pathname),
-                destFilePath = path.join(destFileFolder, filename);
-
-            pathUtils.ensurePath(destFileFolder);
-            const p = httpUtils.downloadFile(u, destFilePath)
-                            .then(destPath =>{
-                                processed.add(u);
-                                return destPath;
-                            });
+            const p = httpUtils.mirrorDownload(u, this._rootPath)
+                .then(destPath =>{
+                    processed.add(u);
+                    return destPath;
+                });
             promises.push(p);
         });
 

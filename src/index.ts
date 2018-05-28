@@ -12,6 +12,7 @@ import * as httpUtils from './utils/httpUtils';
 import * as fileUtils from './utils/fileUtils';
 import { HtmlAssetsDownloader } from './utils/htmlAssetsDownloader';
 import * as linkUtils from './utils/linkUtils';
+import { CssProcessor } from './utils/cssProcessor';
 
 const startUrl = new URL("https://www.davideguida.com"),
     srcDomain = "https://www.davideguida.com",
@@ -38,14 +39,15 @@ const processSite = (startUrl:URL):Promise<boolean> => {
                 tagsSelector: 'link[type="text/css"]',
                 assetUrlExtractor: t => t.attr('href')
             }).then(cssPaths =>{
-                const promises = cssPaths.map(cssPath =>{
-                    return fileUtils.readAsync(cssPath)
-                            .then(data =>{
-                                if(!data || !data.trim().length)
-                                    return Promise.resolve(true);
-                                data = linkUtils.replaceDomain(data, srcDomain, destDomain);
-                                return fileUtils.writeAsync(cssPath, data);
-                            });
+                if(!cssPaths || !cssPaths.length)
+                    return true;
+                const cssProcessor = new CssProcessor({
+                            srcDomain: srcDomain,
+                            destDomain: destDomain,
+                            rootPath: basePath
+                }),
+                promises = cssPaths.map(cssPath =>{
+                    return cssProcessor.run(cssPath);
                 });
                 return Promise.all(promises).then(r => true);
             }),
