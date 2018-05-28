@@ -10,7 +10,7 @@ import { HashMap } from './utils/hashmap';
 import * as pathUtils from './utils/pathUtils';
 import * as httpUtils from './utils/httpUtils';
 import * as fileUtils from './utils/fileUtils';
-import { AssetsDownloader } from './utils/assetsDownloader';
+import { HtmlAssetsDownloader } from './utils/htmlAssetsDownloader';
 
 const startUrl = new URL("https://www.davideguida.com"),
     srcDomain = "https://www.davideguida.com",
@@ -61,7 +61,7 @@ const processSite = (startUrl:URL):Promise<boolean> => {
     },
 
     downloadAssets = (html:string): Promise<boolean> => {
-        const downloader = new AssetsDownloader(srcDomain, rootPath),
+        const downloader = new HtmlAssetsDownloader(srcDomain, rootPath),
             css = downloader.run(html, {
                 tagsSelector: 'link[type="text/css"]',
                 assetUrlExtractor: t => t.attr('href')

@@ -5,15 +5,15 @@ import { HashMap } from "./hashmap";
 import * as pathUtils from './pathUtils';
 import * as httpUtils from './httpUtils';
 
-export interface AssetsDownloaderOptions{
+export interface HtmlAssetsDownloaderOptions{
     tagsSelector:string;
     assetUrlExtractor: (tag:Cheerio) => string;
 }
 
-export class AssetsDownloader{
+export class HtmlAssetsDownloader{
     constructor(private readonly _domainToReplace:string, private readonly _rootPath:string){}
 
-    public run(html:string, options:AssetsDownloaderOptions): Promise<string[]> {
+    public run(html:string, options:HtmlAssetsDownloaderOptions): Promise<string[]> {
         const $ = cheerio.load(html),
             tags = $(options.tagsSelector),
             urls = new HashMap(),
