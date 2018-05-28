@@ -9,10 +9,11 @@ import { url } from 'inspector';
 import { HashMap } from './utils/hashmap';
 import * as pathUtils from './utils/pathUtils';
 import * as httpUtils from './utils/httpUtils';
+import * as fileUtils from './utils/fileUtils';
 import { AssetsDownloader } from './utils/assetsDownloader';
 
 const startUrl = new URL("https://www.davideguida.com"),
-    domainToReplace = "https://www.davideguida.com",
+    srcDomain = "https://www.davideguida.com",
     destDomain = "https://testdg.azurewebsites.net",
     basePath = path.join(__dirname, "/data/");
 
@@ -27,7 +28,7 @@ const processSite = (startUrl:URL):Promise<boolean> => {
 
         $(aTags).each(function(i, link){
             const linkUrl = $(link).attr('href');
-            if(linkUrl && linkUrl.trim().length && linkUrl.indexOf(domainToReplace) > -1){
+            if(linkUrl && linkUrl.trim().length && linkUrl.indexOf(srcDomain) > -1){
                 urls.add(linkUrl);
             }
         });
@@ -35,12 +36,16 @@ const processSite = (startUrl:URL):Promise<boolean> => {
         return urls;
     },
     
-    replaceDomain = (html:string) =>{
-        const reg = new RegExp(domainToReplace, "gm"),
-            reg2 = domainToReplace.replace("/", `\\\/\\`),
+    replaceDomain = (text:string) =>{
+        const reg = new RegExp(srcDomain, "gm"),
+            reg2 = srcDomain.replace("/", `\\\/\\`),
             destDomain2 = destDomain.replace("/", `\\\/\\`),
-            result:string = html.replace(reg, destDomain)
-                                .replace(reg2, destDomain2);
+            srcDomainUrl = new URL(srcDomain),
+            destDomainUrl = new URL(destDomain),
+            reg3 = new RegExp(`//${srcDomainUrl.host}`, "gm"),
+            result:string = text.replace(reg, destDomain)
+                                .replace(reg2, destDomain2)
+                                .replace(reg3, `//${destDomainUrl.host}`);
 
         return result;
     },
@@ -56,10 +61,21 @@ const processSite = (startUrl:URL):Promise<boolean> => {
     },
 
     downloadAssets = (html:string): Promise<boolean> => {
-        const downloader = new AssetsDownloader(domainToReplace, rootPath),
+        const downloader = new AssetsDownloader(srcDomain, rootPath),
             css = downloader.run(html, {
                 tagsSelector: 'link[type="text/css"]',
                 assetUrlExtractor: t => t.attr('href')
+            }).then(cssPaths =>{
+                const promises = cssPaths.map(cssPath =>{
+                    return fileUtils.readAsync(cssPath)
+                            .then(data =>{
+                                if(!data || !data.trim().length)
+                                    return Promise.resolve(true);
+                                data = replaceDomain(data);
+                                return fileUtils.writeAsync(cssPath, data);
+                            });
+                });
+                return Promise.all(promises).then(r => true);
             }),
             img = downloader.run(html, {
                 tagsSelector: 'img',

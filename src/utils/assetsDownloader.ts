@@ -13,12 +13,12 @@ export interface AssetsDownloaderOptions{
 export class AssetsDownloader{
     constructor(private readonly _domainToReplace:string, private readonly _rootPath:string){}
 
-    public run(html:string, options:AssetsDownloaderOptions): Promise<boolean> {
+    public run(html:string, options:AssetsDownloaderOptions): Promise<string[]> {
         const $ = cheerio.load(html),
             tags = $(options.tagsSelector),
             urls = new HashMap(),
             processed = new HashMap(),
-            promises = new Array<Promise<boolean>>();
+            promises = new Array<Promise<string>>();
 
         $(tags).each((i, tag) =>{
             const assetUrl = options.assetUrlExtractor($(tag));
@@ -30,6 +30,7 @@ export class AssetsDownloader{
         urls.foreach(u => {
             if(processed.contains(u))
                 return;
+
             const srcUrl = new URL(u),
                 srcFilePath = path.dirname(srcUrl.pathname),
                 destFileFolder = path.join(this._rootPath, srcFilePath),
@@ -37,15 +38,16 @@ export class AssetsDownloader{
                 destFilePath = path.join(destFileFolder, filename);
 
             pathUtils.ensurePath(destFileFolder);
-            return httpUtils.downloadFile(u, destFilePath)
+            const p = httpUtils.downloadFile(u, destFilePath)
                             .then(destPath =>{
                                 processed.add(u);
-                                return true;
+                                return destPath;
                             });
+            promises.push(p);
         });
 
         return Promise.all(promises).then(p =>{
-            return true;
+            return p;
         });
     }
 }
