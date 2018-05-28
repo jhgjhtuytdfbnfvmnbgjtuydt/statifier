@@ -11,6 +11,7 @@ import * as pathUtils from './utils/pathUtils';
 import * as httpUtils from './utils/httpUtils';
 import * as fileUtils from './utils/fileUtils';
 import { HtmlAssetsDownloader } from './utils/htmlAssetsDownloader';
+import * as linkUtils from './utils/linkUtils';
 
 const startUrl = new URL("https://www.davideguida.com"),
     srcDomain = "https://www.davideguida.com",
@@ -21,37 +22,8 @@ const processSite = (startUrl:URL):Promise<boolean> => {
     const rootPath = path.join(basePath, startUrl.hostname),
         processedUrls = new HashMap();
 
-    const extractLinks = (html:string):HashMap =>{
-        const $ = cheerio.load(html),
-        aTags = $('a'),
-        urls = new HashMap();
-
-        $(aTags).each(function(i, link){
-            const linkUrl = $(link).attr('href');
-            if(linkUrl && linkUrl.trim().length && linkUrl.indexOf(srcDomain) > -1){
-                urls.add(linkUrl);
-            }
-        });
-
-        return urls;
-    },
-    
-    replaceDomain = (text:string) =>{
-        const reg = new RegExp(srcDomain, "gm"),
-            reg2 = srcDomain.replace("/", `\\\/\\`),
-            destDomain2 = destDomain.replace("/", `\\\/\\`),
-            srcDomainUrl = new URL(srcDomain),
-            destDomainUrl = new URL(destDomain),
-            reg3 = new RegExp(`//${srcDomainUrl.host}`, "gm"),
-            result:string = text.replace(reg, destDomain)
-                                .replace(reg2, destDomain2)
-                                .replace(reg3, `//${destDomainUrl.host}`);
-
-        return result;
-    },
-
-    processInternalLinks = (html:string): Promise<boolean[]>=>{
-        const linkUrls = extractLinks(html),
+    const processInternalLinks = (html:string): Promise<boolean[]>=>{
+        const linkUrls = linkUtils.extractFromHtml(html, {domain: srcDomain}),
             promises = new Array<Promise<boolean>>();
         linkUrls.foreach(linkUrl =>{
             promises.push(processUrl(new URL(linkUrl)));
@@ -71,7 +43,7 @@ const processSite = (startUrl:URL):Promise<boolean> => {
                             .then(data =>{
                                 if(!data || !data.trim().length)
                                     return Promise.resolve(true);
-                                data = replaceDomain(data);
+                                data = linkUtils.replaceDomain(data, srcDomain, destDomain);
                                 return fileUtils.writeAsync(cssPath, data);
                             });
                 });
@@ -107,7 +79,7 @@ const processSite = (startUrl:URL):Promise<boolean> => {
                 throw new Error(`unable to load data from url: ${url}`);
             }
 
-            const result = replaceDomain(html),
+            const result = linkUtils.replaceDomain(html, srcDomain, destDomain),
                 folderPath = path.join(rootPath, url.pathname),
                 filename = url.pathname.endsWith("/") ? "index.html" :
                              path.basename(url.pathname)
