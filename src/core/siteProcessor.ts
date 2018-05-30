@@ -13,16 +13,18 @@ import * as fileUtils from '../utils/fileUtils';
 import { HtmlAssetsDownloader } from './htmlAssetsDownloader';
 import * as linkUtils from '../utils/linkUtils';
 import { CssProcessor } from './cssProcessor';
+import { Queue } from '../utils/queue';
 
 export interface SiteProcessorOptions{
     basePath:string;
     destDomain:URL;
 };
 
-export function processSite(startUrl:URL, options:SiteProcessorOptions):Promise<boolean> {
+export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
     const rootPath = path.join(options.basePath, startUrl.hostname),
         srcDomain = startUrl.origin,
-        processedUrls = new HashMap();
+        processedUrls = new HashMap(),
+        urlsToProcess = new Queue<URL>();
 
     const processInternalLinks = (html:string): Promise<boolean[]>=>{
         const linkUrls = linkUtils.extractFromHtml(html, {domain: srcDomain}),
@@ -64,23 +66,8 @@ export function processSite(startUrl:URL, options:SiteProcessorOptions):Promise<
         return Promise.all([css, js, img]).then(() => true);
     },
 
-    processUrl = (url:Url):Promise<boolean> => {
-        if(processedUrls.contains(url.pathname.toLowerCase() ) ){
-            return Promise.resolve(true);
-        }
-
-        processedUrls.add(url.pathname.toLowerCase());
-        
-        console.log(`requesting data from url: ${url} ...`);
-
-        return rp({
-            uri: url
-        }).then( (html:string) =>{
-            if(!html){
-                throw new Error(`unable to load data from url: ${url}`);
-            }
-
-            const result = linkUtils.replaceDomain(html, srcDomain, options.destDomain),
+    savePage = (html:string, url:Url) =>{
+        const result = linkUtils.replaceDomain(html, srcDomain, options.destDomain),
                 folderPath = path.join(rootPath, url.pathname),
                 filename = url.pathname.endsWith("/") ? "index.html" :
                              path.basename(url.pathname)
@@ -89,21 +76,43 @@ export function processSite(startUrl:URL, options:SiteProcessorOptions):Promise<
                                .replace(".htm", ""),
                 filePath = (!filename.length) ? path.join(folderPath, "index.html") : path.join(folderPath, filename);
                 
-            pathUtils.ensurePath(folderPath);
-            
-            if(fs.existsSync(filePath)){
-                fs.unlinkSync(filePath);
+        pathUtils.ensurePath(folderPath);
+        
+        if(fs.existsSync(filePath)){
+            fs.unlinkSync(filePath);
+        }
+        fs.writeFileSync(filePath, result);
+    },
+
+    processUrl = (url:Url):Promise<boolean> => {
+        if(!url)
+            return Promise.reject("invalid url");
+        
+        if(processedUrls.contains(url.pathname.toLowerCase() ) )
+            return Promise.resolve(true);
+        
+        processedUrls.add(url.pathname.toLowerCase());
+        
+        console.log(`requesting data from url: ${url} ...`);
+
+        return rp({
+            uri: url
+        }).then( (html:string) => {
+            if(!html){
+                throw new Error(`unable to load data from url: ${url}`);
             }
-            fs.writeFileSync(filePath, result);
 
-            downloadAssets(html);
+            savePage(html, url);
+            
+            // downloadAssets(html);
 
-            return processInternalLinks(html).then(() =>{
-                return true;
+            const internalLinks = linkUtils.extractFromHtml(html, {domain: srcDomain});
+            internalLinks.foreach(linkUrl =>{
+                urlsToProcess.enqueue(new URL(linkUrl));
             });
-        }).catch(err =>{
-            console.error(err);
-            return false;
+            return true;
+        }).catch(err => {
+            return err;
         });
     };
 
@@ -118,5 +127,15 @@ export function processSite(startUrl:URL, options:SiteProcessorOptions):Promise<
 
     fs.mkdirSync(rootPath);
 
-    return processUrl(startUrl);
+    urlsToProcess.enqueue(startUrl);
+
+    while(urlsToProcess.count()){
+        const currUrl = urlsToProcess.dequeue(),
+            result = await processUrl(currUrl);
+        if(true !== result){
+            console.log(`an error has occurred while processing url '${currUrl}' : ${result}`);
+        }
+    }
+
+    return true;
 };
