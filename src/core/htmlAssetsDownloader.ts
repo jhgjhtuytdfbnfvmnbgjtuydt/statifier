@@ -1,9 +1,9 @@
 import * as path from 'path';
 import * as Promise from 'bluebird';
 import * as cheerio from 'cheerio';
-import { HashMap } from "./hashmap";
-import * as pathUtils from './pathUtils';
-import * as httpUtils from './httpUtils';
+import { HashMap } from "../utils/hashmap";
+import * as pathUtils from '../utils/pathUtils';
+import * as httpUtils from '../utils/httpUtils';
 
 export interface HtmlAssetsDownloaderOptions{
     readonly tagsSelector:string;

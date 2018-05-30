@@ -1,13 +1,13 @@
 import * as Promise from 'bluebird';
 import * as path from 'path';
-import * as fileUtils from './fileUtils';
-import * as linkUtils from './linkUtils';
-import * as httpUtils from './httpUtils';
-import { HashMap } from './hashmap';
+import * as fileUtils from '../utils/fileUtils';
+import * as linkUtils from '../utils/linkUtils';
+import * as httpUtils from '../utils/httpUtils';
+import { HashMap } from '../utils/hashmap';
 
 export interface CssProcessorOptions{
     readonly srcDomain:string;
-    readonly destDomain:string;
+    readonly destDomain:URL;
     readonly rootPath:string;
 }
 

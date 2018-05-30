@@ -21,16 +21,15 @@ export function extractFromHtml(html:string, options?:ExtractFromHtmlOptions):Ha
     return urls;
 }
 
-export function replaceDomain(text:string, srcDomain:string, destDomain:string):string{
+export function replaceDomain(text:string, srcDomain:string, destDomain:URL):string{
     const reg = new RegExp(srcDomain, "gm"),
         reg2 = srcDomain.replace("/", `\\\/\\`),
-        destDomain2 = destDomain.replace("/", `\\\/\\`),
+        destDomain2 = destDomain.origin.replace("/", `\\\/\\`),
         srcDomainUrl = new URL(srcDomain),
-        destDomainUrl = new URL(destDomain),
         reg3 = new RegExp(`//${srcDomainUrl.host}`, "gm"),
-        result:string = text.replace(reg, destDomain)
+        result:string = text.replace(reg, destDomain.origin)
                             .replace(reg2, destDomain2)
-                            .replace(reg3, `//${destDomainUrl.host}`);
+                            .replace(reg3, `//${destDomain.host}`);
 
     return result;
 }
