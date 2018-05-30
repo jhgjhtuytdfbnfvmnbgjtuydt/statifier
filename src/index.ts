@@ -108,6 +108,9 @@ const processSite = (startUrl:URL):Promise<boolean> => {
         });
     };
 
+    if(!fs.existsSync(basePath))
+        fs.mkdirSync(basePath);
+        
     if(fs.existsSync(rootPath)){
         del.sync(rootPath, {
             nosort: true,

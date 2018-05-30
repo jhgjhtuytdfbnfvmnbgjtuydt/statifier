@@ -34,3 +34,9 @@ export function replaceDomain(text:string, srcDomain:string, destDomain:string):
 
     return result;
 }
+
+export function getRelativeUrl(absoluteUrl:string, domain:string):string{
+    const domainUrl = new URL(domain),
+         result = absoluteUrl.substring(absoluteUrl.lastIndexOf(domainUrl.host) + domainUrl.host.length);
+    return result;
+}
