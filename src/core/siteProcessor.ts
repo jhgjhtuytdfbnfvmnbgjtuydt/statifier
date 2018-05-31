@@ -32,34 +32,70 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
         processedUrls = new HashMap(),
         urlsToProcess = new Queue<ProcessItem>();
 
-    const downloadAssets = (html:string): Promise<boolean> => {
-        const downloader = new HtmlAssetsDownloader(srcDomain, rootPath),
-            css = downloader.run(html, {
-                tagsSelector: 'link[type="text/css"]',
-                assetUrlExtractor: t => t.attr('href')
-            }).then(cssPaths =>{
-                if(!cssPaths || !cssPaths.length)
-                    return true;
-                const cssProcessor = new CssProcessor({
-                            srcDomain: srcDomain,
-                            destDomain: options.destDomain,
-                            rootPath: options.basePath
-                }),
-                promises = cssPaths.map(cssPath =>{
-                    return cssProcessor.run(cssPath);
-                });
-                return Promise.all(promises).then(r => true);
-            }),
-            img = downloader.run(html, {
-                tagsSelector: 'img',
-                assetUrlExtractor: t => t.attr('src')
-            }),
-            js = downloader.run(html, {
-                tagsSelector: 'script[type="text/javascript"]',
-                assetUrlExtractor: t => t.attr('src')
+    const processCss = (pageUrl:URL, html:string):void => {
+        const linksExtractorOpts:ExtractFromHtmlOptions = {
+            tagsSelector: 'link[type="text/css"]',
+            validDomains: validDomains,
+            assetUrlExtractor: t => t.attr('href'),
+            srcDomain: pageUrl.origin
+        },
+        cssLinks = linkUtils.extractFromHtml(html, linksExtractorOpts);
+        cssLinks.foreach(linkUrl =>{
+            urlsToProcess.enqueue({
+                url: linkUrl,
+                callback: resourceUrl => {
+                    const p = httpUtils.mirrorDownload(resourceUrl, rootPath)
+                                    .then(destPath =>{
+                                        //TODO: run cssProcessor to replace urls
+                                        processedUrls.add(resourceUrl.pathname.toLowerCase());
+                                        return true;
+                                    });
+                    return p;
+                }
             });
+        });
+        // const downloader = new HtmlAssetsDownloader(srcDomain, rootPath),
+        //     css = downloader.run(html, {
+        //         tagsSelector: 'link[type="text/css"]',
+        //         assetUrlExtractor: t => t.attr('href')
+        //     }).then(cssPaths =>{
+        //         if(!cssPaths || !cssPaths.length)
+        //             return true;
+        //         const cssProcessor = new CssProcessor({
+        //                     srcDomain: srcDomain,
+        //                     destDomain: options.destDomain,
+        //                     rootPath: options.basePath
+        //         }),
+        //         promises = cssPaths.map(cssPath =>{
+        //             return cssProcessor.run(cssPath);
+        //         });
+        //         return Promise.all(promises).then(r => true);
+        //     }),
+        //     img = downloader.run(html, {
+        //         tagsSelector: 'img',
+        //         assetUrlExtractor: t => t.attr('src')
+        //     }),
+        //     js = downloader.run(html, {
+        //         tagsSelector: 'script[type="text/javascript"]',
+        //         assetUrlExtractor: t => t.attr('src')
+        //     });
 
-        return Promise.all([css, js, img]).then(() => true);
+        // return Promise.all([css, js, img]).then(() => true);
+    },
+
+    processInternalLinks = (url: URL, html: string) =>{
+        const linksExtractorOpts: ExtractFromHtmlOptions = {
+            tagsSelector: 'a',
+            validDomains: validDomains,
+            assetUrlExtractor: t => t.attr('href'),
+            srcDomain: url.origin
+        }, internalLinks = linkUtils.extractFromHtml(html, linksExtractorOpts);
+        internalLinks.foreach(linkUrl => {
+            urlsToProcess.enqueue({
+                url: linkUrl,
+                callback: u => processUrl(u)
+            });
+        });
     },
 
     savePage = (html:string, url:URL) =>{
@@ -100,21 +136,9 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
 
             savePage(html, url);
             
-            // downloadAssets(html);
+            processCss(url, html);
 
-            const linksExtractorOpts:ExtractFromHtmlOptions = {
-                tagsSelector: 'a',
-                validDomains: validDomains,
-                assetUrlExtractor: t => t.attr('href'),
-                srcDomain: url.origin
-            },
-            internalLinks = linkUtils.extractFromHtml(html, linksExtractorOpts);
-            internalLinks.foreach(linkUrl =>{
-                urlsToProcess.enqueue({
-                    url: linkUrl,
-                    callback: u => processUrl(u)
-                });
-            });
+            processInternalLinks(url, html);
 
             processedUrls.add(url.pathname.toLowerCase());
 

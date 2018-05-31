@@ -3,9 +3,10 @@ import * as https from 'https';
 import * as fs from 'fs';
 import * as Promise from 'bluebird';
 import * as path from 'path';
+import { URL } from 'url';
 import * as pathUtils from './pathUtils';
 
-export function downloadFile(fromUrl:string, destPath:string){
+export function downloadFile(srcUrl:URL, destPath:string){
     if(fs.existsSync(destPath)){
         fs.unlinkSync(destPath);
     }
@@ -26,21 +27,20 @@ export function downloadFile(fromUrl:string, destPath:string){
                 reject(err);
             };
 
-        if(fromUrl.startsWith('https'))
-            https.get(fromUrl, cb).on('error', onError);
+        if(srcUrl.protocol === 'https:')
+            https.get(srcUrl, cb).on('error', onError);
         else
-            http.get(fromUrl, cb).on('error', onError);
+            http.get(srcUrl, cb).on('error', onError);
     });
 }
 
 
-export function mirrorDownload(url:string, rootPath:string){
-    const srcUrl = new URL(url),
-    srcFilePath = path.dirname(srcUrl.pathname),
+export function mirrorDownload(srcUrl:URL, rootPath:string){
+    const srcFilePath = path.dirname(srcUrl.pathname),
     destFileFolder = path.join(rootPath, srcFilePath),
     filename = path.basename(srcUrl.pathname),
     destFilePath = path.join(destFileFolder, filename);
 
     pathUtils.ensurePath(destFileFolder);
-    return downloadFile(url, destFilePath);
+    return downloadFile(srcUrl, destFilePath);
 }
