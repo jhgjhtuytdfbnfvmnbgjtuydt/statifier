@@ -1,20 +1,31 @@
 import * as cheerio from 'cheerio';
+import * as path from 'path';
+import { URL } from 'url';
 import { HashMap } from "./hashmap";
 
 export interface ExtractFromHtmlOptions{
-    domain?:string;
+    readonly tagsSelector:string;
+    readonly assetUrlExtractor: (tag:Cheerio) => string;
+    readonly validDomains?:HashMap<string>;
+    readonly srcDomain:string;
 }
 
-export function extractFromHtml(html:string, options?:ExtractFromHtmlOptions):HashMap{
+export function extractFromHtml(html:string, options:ExtractFromHtmlOptions):HashMap<URL>{
     const $ = cheerio.load(html),
-        aTags = $('a'),
-        urls = new HashMap(),
-        useDomain = (options && options.domain);
+        aTags = $(options.tagsSelector),
+        urls = new HashMap<URL>(),
+        useDomains = (options.validDomains && options.validDomains.count());
 
-    $(aTags).each(function(i, link){
-        const linkUrl = $(link).attr('href');
-        if(linkUrl && linkUrl.trim().length && (!useDomain || linkUrl.indexOf(options.domain) > -1)){
-            urls.add(linkUrl);
+    $(aTags).each((i, link) =>{
+        const linkUrl = (options.assetUrlExtractor($(link)) || '').trim();
+        if(!linkUrl.trim().length || '#' === linkUrl || linkUrl.startsWith('#') || linkUrl.startsWith('javascript:'))
+            return;
+
+        const useSrcDomain = !linkUrl.startsWith('http'),
+             url = new URL(useSrcDomain ? path.join(options.srcDomain, linkUrl) : linkUrl);
+        
+        if(!useDomains || options.validDomains.contains(url.host)){
+            urls.add(url);
         }
     });
 

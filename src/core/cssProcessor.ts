@@ -48,34 +48,36 @@ export class CssProcessor {
                     cssRelativeFullPath = linkUtils.getRelativeUrl(cssPath, this.options.srcDomain),
                     cssRelativeFolder = path.dirname(cssRelativeFullPath) + '/';
 
-                const imageUrls = this.extractImageUrls(data),
-                    promises = imageUrls.map(iu =>{
-                        if(!iu || !iu.length)
-                            return Promise.resolve(true);
+                // const imageUrls = this.extractImageUrls(data),
+                //     promises = imageUrls.map(iu =>{
+                //         if(!iu || !iu.length)
+                //             return Promise.resolve(true);
 
-                        let imageUrl = iu;
-                        if(!imageUrl.startsWith('http')){
-                            if(imageUrl.startsWith('//')){
-                                imageUrl = srcDomainUrl.protocol + imageUrl;
-                            }else if(imageUrl.startsWith('./')){
-                                imageUrl = path.join(this.options.srcDomain, cssRelativeFolder, imageUrl);
-                            }else{
-                                imageUrl = path.join(this.options.srcDomain, imageUrl);
-                            }
-                        }
+                //         let imageUrl = iu;
+                //         if(!imageUrl.startsWith('http')){
+                //             if(imageUrl.startsWith('//')){
+                //                 imageUrl = srcDomainUrl.protocol + imageUrl;
+                //             }else if(imageUrl.startsWith('./')){
+                //                 imageUrl = path.join(this.options.srcDomain, cssRelativeFolder, imageUrl);
+                //             }else{
+                //                 imageUrl = path.join(this.options.srcDomain, imageUrl);
+                //             }
+                //         }
 
-                        return httpUtils.mirrorDownload(imageUrl, this.options.rootPath)
-                                        .then(p => true)
-                                        .catch(err =>{
-                                            console.error(`an error has occurred while downloading img from ${imageUrl} to ${this.options.rootPath} : ${JSON.stringify(err)}`);
-                                            return false;
-                                        });
-                    });
+                //         return httpUtils.mirrorDownload(imageUrl, this.options.rootPath)
+                //                         .then(p => true)
+                //                         .catch(err =>{
+                //                             console.error(`an error has occurred while downloading img from ${imageUrl} to ${this.options.rootPath} : ${JSON.stringify(err)}`);
+                //                             return false;
+                //                         });
+                //     });
 
-                data = linkUtils.replaceDomain(data, this.options.srcDomain, this.options.destDomain);
-                const replacePromise = fileUtils.writeAsync(cssPath, data);
+                // data = linkUtils.replaceDomain(data, this.options.srcDomain, this.options.destDomain);
+                // const replacePromise = fileUtils.writeAsync(cssPath, data);
                 
-                return Promise.all([replacePromise, ...promises]).then(p => true);
+                // return Promise.all([replacePromise, ...promises]).then(p => true);
+
+                return null;
             });
     }
 }

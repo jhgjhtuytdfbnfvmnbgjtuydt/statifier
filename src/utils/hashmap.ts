@@ -1,9 +1,13 @@
-export class HashMap{
-    private _map:{[key:string]: boolean};
+export class HashMap<T>{
+    private _map:{[key:string]: T};
     private _keys:string[];
 
-    constructor(){
+    constructor(values?:Array<T>){
         this.clear();
+        if(values && values.length)
+            values.forEach(d =>{
+                this.add(d);
+            });
     }
 
     private setKeys(){
@@ -16,32 +20,46 @@ export class HashMap{
         this.setKeys();
     }
 
-    public add(key:string){
-        this._map[key] = true;
+    public add(item:T):void{
+        if(!item)
+            return;
+        const key = item.toString();
+        this._map[key] = item;
 
         this.setKeys();
     }
 
-    public remove(key:string){
+    public remove(item:T){
+        if(!item)
+            return;
+        const key = item.toString();
         delete this._map[key];
         this.setKeys();
     }
 
-    public contains(key:string):boolean{
-        return this._map[key] === true;
+    public contains(item:T):boolean{
+        if(!item)
+            return;
+        const key = item.toString()
+            item = this._map[key];
+        return (item && item !== undefined && item !== null);
     }
 
     public count():number{
         return this._keys.length;
     }
 
-    public foreach( callback: (k:string) => void  ){
+    public foreach( callback: (val:T) => void  ){
         this._keys.forEach(key =>{
-            callback(key);
+            const item = this._map[key];
+            callback(item);
         });
     }
 
-    public map<U>(callback:(k:string, i:number) => U): Array<U>{
-        return this._keys.map(callback);
+    public map<U>(callback:(val:T, i:number) => U): Array<U>{
+        return this._keys.map((k,i) =>{
+            const item = this._map[k];
+            return callback(item, i);
+        });
     }
 }
