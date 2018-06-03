@@ -52,6 +52,20 @@ describe('Queue', () =>{
 
             expect(sut.dequeue()).to.be.eql(item);
         });
+
+        it('should dequeue elements added', () =>{
+            const sut = new Queue<number>(),
+                itemsCount = 10;
+            
+            for(let i=0;i!=itemsCount;++i)
+                sut.enqueue(i);
+            expect(sut.count()).to.be.eql(itemsCount);
+
+            for(let i=itemsCount-1;i!=-1;--i)
+                expect(sut.dequeue()).to.be.eql(i);
+
+            expect(sut.count()).to.be.eql(0);
+        });
     });
 
     describe('peek()', () =>{

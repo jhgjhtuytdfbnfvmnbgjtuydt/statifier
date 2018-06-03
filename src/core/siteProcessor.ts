@@ -9,9 +9,8 @@ import { HashMap } from '../utils/hashmap';
 import * as pathUtils from '../utils/pathUtils';
 import * as httpUtils from '../utils/httpUtils';
 import * as fileUtils from '../utils/fileUtils';
-import { HtmlAssetsDownloader } from './htmlAssetsDownloader';
 import * as linkUtils from '../utils/linkUtils';
-import { CssProcessor } from './cssProcessor';
+import * as cssProcessor from './cssProcessor';
 import { Queue } from '../utils/queue';
 import { ExtractFromHtmlOptions } from '../utils/linkUtils';
 
@@ -28,74 +27,90 @@ interface ProcessItem{
 export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
     const rootPath = path.join(options.basePath, startUrl.hostname),
         srcDomain = startUrl.origin,
-        validDomains = new HashMap([startUrl.host]),
+        srcDomainUrl = new URL(srcDomain),
+        validDomains = new HashMap([startUrl.host]), // TODO: https://i2.wp.com/www.davideguida.com
         processedUrls = new HashMap(),
-        urlsToProcess = new Queue<ProcessItem>();
+        urlsToProcess = new Queue<ProcessItem>(),
+        linksExtractorOpts = {
+            'css': {
+                tagsSelector: 'link[type="text/css"]',
+                validDomains: validDomains,
+                assetUrlExtractor: t => t.attr('href'),
+                srcDomain: startUrl.origin
+            } as ExtractFromHtmlOptions,
+            'image': {
+                tagsSelector: 'img',
+                validDomains: validDomains,
+                assetUrlExtractor: t => t.attr('src'),
+                srcDomain: startUrl.origin
+            } as ExtractFromHtmlOptions,
+            'javascript': {
+                tagsSelector: 'script[type="text/javascript"]',
+                validDomains: validDomains,
+                assetUrlExtractor: t => t.attr('src'),
+                srcDomain: startUrl.origin
+            } as ExtractFromHtmlOptions,
+            'internalLink': {
+                tagsSelector: 'a',
+                validDomains: validDomains,
+                assetUrlExtractor: t => t.attr('href'),
+                srcDomain: startUrl.origin
+            } as ExtractFromHtmlOptions
+        };
 
-    const processCss = (pageUrl:URL, html:string):void => {
-        const linksExtractorOpts:ExtractFromHtmlOptions = {
-            tagsSelector: 'link[type="text/css"]',
-            validDomains: validDomains,
-            assetUrlExtractor: t => t.attr('href'),
-            srcDomain: pageUrl.origin
-        },
-        cssLinks = linkUtils.extractFromHtml(html, linksExtractorOpts);
-        cssLinks.foreach(linkUrl =>{
+    const extractAssets = (pageUrl:URL, html:string, linksExtractorOpts:ExtractFromHtmlOptions, downloadCallback: (u:URL)=>Promise<boolean>):void => {
+        const assetsLinks = linkUtils.extractFromHtml(html, linksExtractorOpts);
+        assetsLinks.foreach(linkUrl =>{
             urlsToProcess.enqueue({
                 url: linkUrl,
-                callback: resourceUrl => {
-                    const p = httpUtils.mirrorDownload(resourceUrl, rootPath)
-                                    .then(destPath =>{
-                                        //TODO: run cssProcessor to replace urls
-                                        processedUrls.add(resourceUrl.pathname.toLowerCase());
-                                        return true;
-                                    });
-                    return p;
-                }
+                callback: downloadCallback
             });
         });
-        // const downloader = new HtmlAssetsDownloader(srcDomain, rootPath),
-        //     css = downloader.run(html, {
-        //         tagsSelector: 'link[type="text/css"]',
-        //         assetUrlExtractor: t => t.attr('href')
-        //     }).then(cssPaths =>{
-        //         if(!cssPaths || !cssPaths.length)
-        //             return true;
-        //         const cssProcessor = new CssProcessor({
-        //                     srcDomain: srcDomain,
-        //                     destDomain: options.destDomain,
-        //                     rootPath: options.basePath
-        //         }),
-        //         promises = cssPaths.map(cssPath =>{
-        //             return cssProcessor.run(cssPath);
-        //         });
-        //         return Promise.all(promises).then(r => true);
-        //     }),
-        //     img = downloader.run(html, {
-        //         tagsSelector: 'img',
-        //         assetUrlExtractor: t => t.attr('src')
-        //     }),
-        //     js = downloader.run(html, {
-        //         tagsSelector: 'script[type="text/javascript"]',
-        //         assetUrlExtractor: t => t.attr('src')
-        //     });
-
-        // return Promise.all([css, js, img]).then(() => true);
     },
 
-    processInternalLinks = (url: URL, html: string) =>{
-        const linksExtractorOpts: ExtractFromHtmlOptions = {
-            tagsSelector: 'a',
-            validDomains: validDomains,
-            assetUrlExtractor: t => t.attr('href'),
-            srcDomain: url.origin
-        }, internalLinks = linkUtils.extractFromHtml(html, linksExtractorOpts);
-        internalLinks.foreach(linkUrl => {
-            urlsToProcess.enqueue({
-                url: linkUrl,
-                callback: u => processUrl(u)
-            });
+    downloadCss = (url:URL):Promise<boolean> =>{
+        console.log(`downloading css: ${url} ...`);
+
+        return httpUtils.mirrorDownload(url, rootPath)
+        .then(cssFullPath =>{
+            return fileUtils.readAsync(cssFullPath)
+                .then(css =>{
+                    const imageUrls = cssProcessor.extractImageUrls(css, srcDomainUrl);
+                    if(imageUrls.count()){
+                        imageUrls.foreach(imageUrl =>{
+                            urlsToProcess.enqueue({
+                                url: imageUrl,
+                                callback: downloadImage
+                            });
+                        });
+
+                        css = linkUtils.replaceDomain(css, srcDomain, options.destDomain);
+                    }
+                    return fileUtils.writeAsync(cssFullPath, css);
+                });
         });
+    },
+
+    downloadImage = (url:URL):Promise<boolean> =>{
+        console.log(`downloading image: ${url} ...`);
+
+        return httpUtils.mirrorDownload(url, rootPath)
+            .then(r => {
+                return true;
+            }).catch(err =>{
+                return false;
+            });
+    },
+
+    downloadJs = (url:URL):Promise<boolean> =>{
+        console.log(`downloading javascript: ${url} ...`);
+
+        return httpUtils.mirrorDownload(url, rootPath)
+            .then(r => {
+                return true;
+            }).catch(err =>{
+                return false;
+            });
     },
 
     savePage = (html:string, url:URL) =>{
@@ -116,12 +131,9 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
         fs.writeFileSync(filePath, result);
     },
 
-    processUrl = (url:URL):Promise<boolean> => {
+    processPage = (url:URL):Promise<boolean> => {
         if(!url)
             return Promise.reject("invalid url");
-        
-        if(processedUrls.contains(url.pathname.toLowerCase() ) )
-            return Promise.resolve(true);
         
         const urlValue = url.toString();
 
@@ -136,11 +148,10 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
 
             savePage(html, url);
             
-            processCss(url, html);
-
-            processInternalLinks(url, html);
-
-            processedUrls.add(url.pathname.toLowerCase());
+            extractAssets(url, html, linksExtractorOpts.css, downloadCss);
+            extractAssets(url, html, linksExtractorOpts.javascript, downloadJs);
+            extractAssets(url, html, linksExtractorOpts.image, downloadImage);
+            extractAssets(url, html, linksExtractorOpts.internalLink, processPage);
 
             return true;
         }).catch(err => {
@@ -161,16 +172,22 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
 
     urlsToProcess.enqueue({
         url: startUrl,
-        callback: u => processUrl(u)
+        callback: u => processPage(u)
     });
 
     while(urlsToProcess.count()){
         const item = urlsToProcess.dequeue();
         if(!item)
             continue;
+
+        if(processedUrls.contains(item.url.pathname.toLowerCase() ) )
+            continue;
+
         const result = await item.callback(item.url);
         if(true !== result){
             console.log(`an error has occurred while processing url '${item.url}' : ${result}`);
+        }else{
+            processedUrls.add(item.url.pathname.toLowerCase());
         }
     }
 
