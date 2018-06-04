@@ -62,4 +62,8 @@ export class HashMap<T>{
             return callback(item, i);
         });
     }
+
+    public toArray():Array<T>{
+        return this.map<T>( (v, i) => v );
+    }
 }

@@ -17,6 +17,7 @@ import { ExtractFromHtmlOptions } from '../utils/linkUtils';
 export interface SiteProcessorOptions{
     basePath:string;
     destDomain:URL;
+    srcDomains:HashMap<string>;
 };
 
 interface ProcessItem{
@@ -26,33 +27,32 @@ interface ProcessItem{
 
 export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
     const rootPath = path.join(options.basePath, startUrl.hostname),
-        srcDomain = startUrl.origin,
-        srcDomainUrl = new URL(srcDomain),
-        validDomains = new HashMap([startUrl.host]), // TODO: https://i2.wp.com/www.davideguida.com
+        srcDomainUrl = new URL(startUrl.origin),
+        srcDomains = new HashMap([startUrl.host, ...options.srcDomains.toArray()]),
         processedUrls = new HashMap(),
         urlsToProcess = new Queue<ProcessItem>(),
         linksExtractorOpts = {
             'css': {
                 tagsSelector: 'link[type="text/css"]',
-                validDomains: validDomains,
+                validDomains: srcDomains,
                 assetUrlExtractor: t => t.attr('href'),
                 srcDomain: startUrl.origin
             } as ExtractFromHtmlOptions,
             'image': {
                 tagsSelector: 'img',
-                validDomains: validDomains,
+                validDomains: srcDomains,
                 assetUrlExtractor: t => t.attr('src'),
                 srcDomain: startUrl.origin
             } as ExtractFromHtmlOptions,
             'javascript': {
                 tagsSelector: 'script[type="text/javascript"]',
-                validDomains: validDomains,
+                validDomains: srcDomains,
                 assetUrlExtractor: t => t.attr('src'),
                 srcDomain: startUrl.origin
             } as ExtractFromHtmlOptions,
             'internalLink': {
                 tagsSelector: 'a',
-                validDomains: validDomains,
+                validDomains: srcDomains,
                 assetUrlExtractor: t => t.attr('href'),
                 srcDomain: startUrl.origin
             } as ExtractFromHtmlOptions
@@ -84,7 +84,7 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
                             });
                         });
 
-                        css = linkUtils.replaceDomain(css, srcDomain, options.destDomain);
+                        css = linkUtils.replaceDomain(css, startUrl.origin, options.destDomain);
                     }
                     return fileUtils.writeAsync(cssFullPath, css);
                 });
@@ -114,7 +114,7 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
     },
 
     savePage = (html:string, url:URL) =>{
-        const result = linkUtils.replaceDomain(html, srcDomain, options.destDomain),
+        const result = linkUtils.replaceDomain(html, startUrl.origin, options.destDomain),
                 folderPath = path.join(rootPath, url.pathname),
                 filename = url.pathname.endsWith("/") ? "index.html" :
                              path.basename(url.pathname)
@@ -146,12 +146,12 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
                 throw new Error(`unable to load data from url: ${urlValue}`);
             }
 
-            savePage(html, url);
-            
             extractAssets(url, html, linksExtractorOpts.css, downloadCss);
             extractAssets(url, html, linksExtractorOpts.javascript, downloadJs);
             extractAssets(url, html, linksExtractorOpts.image, downloadImage);
             extractAssets(url, html, linksExtractorOpts.internalLink, processPage);
+
+            savePage(html, url);
 
             return true;
         }).catch(err => {
