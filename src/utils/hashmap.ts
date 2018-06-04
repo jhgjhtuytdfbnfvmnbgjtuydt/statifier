@@ -40,9 +40,11 @@ export class HashMap<T>{
     public contains(item:T):boolean{
         if(!item)
             return;
-        const key = item.toString()
-            item = this._map[key];
-        return (item && item !== undefined && item !== null);
+        
+        const key = item.toString();
+        
+        item = this._map[key];
+        return (item !== undefined && item !== null);
     }
 
     public count():number{
