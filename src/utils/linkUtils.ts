@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import * as path from 'path';
-import { URL } from 'url';
 import { HashMap } from "./hashmap";
+import * as urlUtils from './urlUtils';
 
 export interface ExtractFromHtmlOptions{
     readonly tagsSelector:string;
@@ -33,20 +33,13 @@ export function extractFromHtml(html:string, options:ExtractFromHtmlOptions):Has
 }
 
 export function replaceDomain(text:string, srcDomain:string, destDomain:URL):string{
-    const reg = new RegExp(srcDomain, "gm"),
-        reg2 = srcDomain.replace("/", `\\\/\\`),
-        destDomain2 = destDomain.origin.replace("/", `\\\/\\`),
-        srcDomainUrl = new URL(srcDomain),
-        reg3 = new RegExp(`//${srcDomainUrl.host}`, "gm"),
-        result:string = text.replace(reg, destDomain.origin)
-                            .replace(reg2, destDomain2)
-                            .replace(reg3, `//${destDomain.host}`);
+    const srcDomainURL = urlUtils.toURL(srcDomain),
+        reg = new RegExp(srcDomainURL.origin, "gm"),
+        reg2 = new RegExp(`//${srcDomainURL.host}`, "gm"),
+        reg3 = new RegExp(`${srcDomainURL.host}`, "gm");;
 
-    return result;
+    return text.replace(reg, destDomain.origin)
+               .replace(reg2, `//${destDomain.host}`)
+               .replace(reg3, destDomain.host);  
 }
 
-export function getRelativeUrl(absoluteUrl:string, domain:string):string{
-    const domainUrl = new URL(domain),
-         result = absoluteUrl.substring(absoluteUrl.lastIndexOf(domainUrl.host) + domainUrl.host.length);
-    return result;
-}
