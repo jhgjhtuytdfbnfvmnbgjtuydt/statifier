@@ -1,9 +1,7 @@
 import * as rp from 'request-promise';
 import * as Promise from 'bluebird';
-import * as cheerio from 'cheerio';
 import * as fs from 'fs';
 import * as path from 'path';
-import { URL } from 'url';
 import * as del from 'del';
 import { HashMap } from '../utils/hashmap';
 import * as pathUtils from '../utils/pathUtils';

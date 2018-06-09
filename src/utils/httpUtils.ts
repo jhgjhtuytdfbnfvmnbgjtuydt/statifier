@@ -3,7 +3,6 @@ import * as https from 'https';
 import * as fs from 'fs';
 import * as Promise from 'bluebird';
 import * as path from 'path';
-import { URL } from 'url';
 import * as pathUtils from './pathUtils';
 
 export function downloadFile(srcUrl:URL, destPath:string){

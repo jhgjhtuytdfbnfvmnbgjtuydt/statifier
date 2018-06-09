@@ -1,9 +1,4 @@
-import * as Promise from 'bluebird';
 import * as path from 'path';
-import { URL } from 'url';
-import * as fileUtils from '../utils/fileUtils';
-import * as linkUtils from '../utils/linkUtils';
-import * as httpUtils from '../utils/httpUtils';
 import { HashMap } from '../utils/hashmap';
 
 const reg = new RegExp(/url(?:\(['"]?)(.*?)(?:['"]?\))/, "gmi");
