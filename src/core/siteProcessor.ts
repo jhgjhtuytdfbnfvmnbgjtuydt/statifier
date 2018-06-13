@@ -15,7 +15,7 @@ import { ExtractFromHtmlOptions } from '../utils/linkUtils';
 export interface SiteProcessorOptions{
     basePath:string;
     destDomain:URL;
-    srcDomains:HashMap<string>;
+    srcDomains:HashMap<URL>;
 };
 
 interface ProcessItem{
@@ -26,7 +26,7 @@ interface ProcessItem{
 export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
     const rootPath = path.join(options.basePath, startUrl.hostname),
         srcDomainUrl = new URL(startUrl.origin),
-        srcDomains = new HashMap([startUrl.host, ...options.srcDomains.toArray()]),
+        srcDomains = new HashMap([...options.srcDomains.toArray(), startUrl]),
         processedUrls = new HashMap(),
         urlsToProcess = new Queue<ProcessItem>(),
         linksExtractorOpts = {
@@ -34,29 +34,29 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
                 tagsSelector: 'link[type="text/css"]',
                 validDomains: srcDomains,
                 assetUrlExtractor: t => t.attr('href'),
-                srcDomain: startUrl.origin
+                primaryDomain: srcDomainUrl
             } as ExtractFromHtmlOptions,
             'image': {
                 tagsSelector: 'img',
                 validDomains: srcDomains,
                 assetUrlExtractor: t => t.attr('src'),
-                srcDomain: startUrl.origin
+                primaryDomain: srcDomainUrl
             } as ExtractFromHtmlOptions,
             'javascript': {
                 tagsSelector: 'script[type="text/javascript"]',
                 validDomains: srcDomains,
                 assetUrlExtractor: t => t.attr('src'),
-                srcDomain: startUrl.origin
+                primaryDomain: srcDomainUrl
             } as ExtractFromHtmlOptions,
             'internalLink': {
                 tagsSelector: 'a',
                 validDomains: srcDomains,
                 assetUrlExtractor: t => t.attr('href'),
-                srcDomain: startUrl.origin
+                primaryDomain: srcDomainUrl
             } as ExtractFromHtmlOptions
         };
 
-    const extractAssets = (pageUrl:URL, html:string, linksExtractorOpts:ExtractFromHtmlOptions, downloadCallback: (u:URL)=>Promise<boolean>):void => {
+    const extractAssets = (html:string, linksExtractorOpts:ExtractFromHtmlOptions, downloadCallback: (u:URL)=>Promise<boolean>):void => {
         const assetsLinks = linkUtils.extractFromHtml(html, linksExtractorOpts);
         assetsLinks.foreach(linkUrl =>{
             urlsToProcess.enqueue({
@@ -82,10 +82,16 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
                             });
                         });
 
-                        css = linkUtils.replaceDomain(css, startUrl.origin, options.destDomain);
+                        srcDomains.foreach(d =>{
+                            css = linkUtils.replaceDomain(css, d, options.destDomain);
+                        });
                     }
+
                     return fileUtils.writeAsync(cssFullPath, css);
                 });
+        }).catch(err =>{
+            console.log(`an error occurred while downloading css from ${url} : ${err}`);
+            return false;
         });
     },
 
@@ -96,6 +102,7 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
             .then(r => {
                 return true;
             }).catch(err =>{
+                console.log(`an error occurred while downloading image from ${url} : ${err}`);
                 return false;
             });
     },
@@ -107,20 +114,25 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
             .then(r => {
                 return true;
             }).catch(err =>{
+                console.log(`an error occurred while downloading js from ${url} : ${err}`);
                 return false;
             });
     },
 
     savePage = (html:string, url:URL) =>{
-        const result = linkUtils.replaceDomain(html, startUrl.origin, options.destDomain),
-                folderPath = path.join(rootPath, url.pathname),
-                filename = url.pathname.endsWith("/") ? "index.html" :
-                             path.basename(url.pathname)
-                               .trim()
-                               .replace(".html", "")
-                               .replace(".htm", ""),
-                filePath = (!filename.length) ? path.join(folderPath, "index.html") : path.join(folderPath, filename);
-                
+        const folderPath = path.join(rootPath, url.pathname),
+            filename = url.pathname.endsWith("/") ? "index.html" :
+                            path.basename(url.pathname)
+                            .trim()
+                            .replace(".html", "")
+                            .replace(".htm", ""),
+            filePath = (!filename.length) ? path.join(folderPath, "index.html") : path.join(folderPath, filename);
+            
+        let result = html;
+        srcDomains.foreach(d =>{
+            result = linkUtils.replaceDomain(result, d, options.destDomain);
+        });
+
         pathUtils.ensurePath(folderPath);
         
         if(fs.existsSync(filePath)){
@@ -144,10 +156,10 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
                 throw new Error(`unable to load data from url: ${urlValue}`);
             }
 
-            extractAssets(url, html, linksExtractorOpts.css, downloadCss);
-            extractAssets(url, html, linksExtractorOpts.javascript, downloadJs);
-            extractAssets(url, html, linksExtractorOpts.image, downloadImage);
-            extractAssets(url, html, linksExtractorOpts.internalLink, processPage);
+            extractAssets(html, linksExtractorOpts.css, downloadCss);
+            extractAssets(html, linksExtractorOpts.javascript, downloadJs);
+            extractAssets(html, linksExtractorOpts.image, downloadImage);
+            extractAssets(html, linksExtractorOpts.internalLink, processPage);
 
             savePage(html, url);
 

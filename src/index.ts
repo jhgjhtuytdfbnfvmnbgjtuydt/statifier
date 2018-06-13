@@ -10,7 +10,9 @@ const startUrl = new URL("https://www.davideguida.com"),
 processSite(startUrl, {
     basePath: basePath,
     destDomain: destDomain,
-    srcDomains: new HashMap(['https://i2.wp.com/www.davideguida.com'])
+    srcDomains: new HashMap([new URL('https://i2.wp.com/www.davideguida.com'), 
+                            new URL('https://i1.wp.com/www.davideguida.com'),
+                            new URL('https://i0.wp.com/www.davideguida.com')])
 }).then(() =>{
     console.log(`site ${startUrl} processed!`);
 });
