@@ -16,6 +16,7 @@ export interface SiteProcessorOptions{
     basePath:string;
     destDomain:URL;
     srcDomains:HashMap<URL>;
+    maxRequestsCount:number;
 };
 
 interface ProcessItem{
@@ -167,39 +168,56 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
         }).catch(err => {
             return err;
         });
+    },
+    init = () =>{
+        if(!fs.existsSync(options.basePath))
+            fs.mkdirSync(options.basePath);
+            
+        if(fs.existsSync(rootPath)){
+            del.sync(rootPath, {
+                nosort: true,
+            });
+        }
+
+        fs.mkdirSync(rootPath);
+
+        urlsToProcess.enqueue({
+            url: startUrl,
+            callback: u => processPage(u)
+        });
+    },
+    start = async () =>{
+        let currPromises = new Array<Promise<void>>();
+
+        while(urlsToProcess.count() || currPromises.length){
+            while(urlsToProcess.count() && currPromises.length < options.maxRequestsCount){
+                const item = urlsToProcess.dequeue();
+                if(!item)
+                    continue;
+
+                if(processedUrls.contains(item.url.pathname.toLowerCase() ) )
+                    continue;
+
+                const p = item.callback(item.url)
+                    .then(result =>{
+                        if(true !== result){
+                            console.log(`an error has occurred while processing url '${item.url}' : ${result}`);
+                        }else{
+                            processedUrls.add(item.url.pathname.toLowerCase());
+                        }
+                    });
+                currPromises.push(p);
+            }
+
+            if(currPromises.length){
+                await Promise.all(currPromises);
+                currPromises = new Array<Promise<void>>();
+            }
+        }
     };
 
-    if(!fs.existsSync(options.basePath))
-        fs.mkdirSync(options.basePath);
-        
-    if(fs.existsSync(rootPath)){
-        del.sync(rootPath, {
-            nosort: true,
-        });
-    }
-
-    fs.mkdirSync(rootPath);
-
-    urlsToProcess.enqueue({
-        url: startUrl,
-        callback: u => processPage(u)
-    });
-
-    while(urlsToProcess.count()){
-        const item = urlsToProcess.dequeue();
-        if(!item)
-            continue;
-
-        if(processedUrls.contains(item.url.pathname.toLowerCase() ) )
-            continue;
-
-        const result = await item.callback(item.url);
-        if(true !== result){
-            console.log(`an error has occurred while processing url '${item.url}' : ${result}`);
-        }else{
-            processedUrls.add(item.url.pathname.toLowerCase());
-        }
-    }
-
+    init();
+    await start();
+    
     return true;
 };
