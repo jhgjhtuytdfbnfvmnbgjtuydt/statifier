@@ -84,7 +84,7 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
                         });
 
                         srcDomains.foreach(d =>{
-                            css = linkUtils.replaceDomain(css, d, options.destDomain);
+                            css = linkUtils.replaceDomains(css, d, options.destDomain);
                         });
                     }
 
@@ -131,7 +131,7 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
             
         let result = html;
         srcDomains.foreach(d =>{
-            result = linkUtils.replaceDomain(result, d, options.destDomain);
+            result = linkUtils.replaceDomains(result, d, options.destDomain);
         });
 
         pathUtils.ensurePath(folderPath);

@@ -11,9 +11,7 @@ processSite(startUrl, {
     basePath: basePath,
     destDomain: destDomain,
     maxRequestsCount: 5,
-    srcDomains: new HashMap([new URL('https://i2.wp.com'), 
-                            new URL('https://i1.wp.com'),
-                            new URL('https://i0.wp.com')])
+    srcDomains: new HashMap()
 }).then(() =>{
     console.log(`site ${startUrl} processed!`);
 });
