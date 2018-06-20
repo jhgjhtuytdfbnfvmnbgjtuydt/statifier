@@ -2,16 +2,17 @@ import * as path from 'path';
 import { URL } from 'url';
 import { processSite } from './core/siteProcessor';
 import { HashMap } from './utils/hashmap';
+import { ILogger, LoggerOptions, LoggerFactory } from './utils/logger';
 
 const startUrl = new URL("https://www.davideguida.com"),
     destDomain = new URL("https://testdg.azurewebsites.net"),
-    basePath = path.join(__dirname, "/data/");
+    loggerFactory = new LoggerFactory();
 
 processSite(startUrl, {
-    basePath: basePath,
+    basePath: __dirname,
     destDomain: destDomain,
     maxRequestsCount: 5,
     srcDomains: new HashMap()
-}).then(() =>{
-    console.log(`site ${startUrl} processed!`);
+}, loggerFactory).then(() =>{
+    console.log('done');
 });

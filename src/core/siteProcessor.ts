@@ -11,6 +11,8 @@ import * as linkUtils from '../utils/linkUtils';
 import * as cssProcessor from './cssProcessor';
 import { Queue } from '../utils/queue';
 import { ExtractFromHtmlOptions } from '../utils/linkUtils';
+import { ILogger, LoggerOptions, ILoggerFactory } from '../utils/logger';
+import * as uuid from 'uuid';
 
 export interface SiteProcessorOptions{
     basePath:string;
@@ -24,12 +26,19 @@ interface ProcessItem{
     callback: (url:URL)=>Promise<boolean>;
 }
 
-export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
-    const rootPath = path.join(options.basePath, startUrl.hostname),
+export async function processSite(startUrl:URL, options:SiteProcessorOptions, loggerFactory:ILoggerFactory<LoggerOptions>) {
+    const id = uuid.v4(),
+        dataPath = path.join(options.basePath, "data"),
+        rootPath = path.join(dataPath, id, startUrl.hostname),
         srcDomainUrl = new URL(startUrl.origin),
         srcDomains = new HashMap([...options.srcDomains.toArray(), startUrl]),
         processedUrls = new HashMap(),
         urlsToProcess = new Queue<ProcessItem>(),
+        loggerOptions:LoggerOptions = {
+            basePath: path.join(options.basePath, "logs"),
+            filename: id
+        },
+        logger = loggerFactory.build(loggerOptions),
         linksExtractorOpts = {
             'css': {
                 tagsSelector: 'link[type="text/css"]',
@@ -68,7 +77,7 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
     },
 
     downloadCss = (url:URL):Promise<boolean> =>{
-        console.log(`downloading css: ${url} ...`);
+        logger.info(`downloading css: ${url} ...`);
 
         return httpUtils.mirrorDownload(url, rootPath)
         .then(cssFullPath =>{
@@ -91,31 +100,31 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
                     return fileUtils.writeAsync(cssFullPath, css);
                 });
         }).catch(err =>{
-            console.log(`an error occurred while downloading css from ${url} : ${err}`);
+            logger.error(`an error occurred while downloading css from ${url}`, err);
             return false;
         });
     },
 
     downloadImage = (url:URL):Promise<boolean> =>{
-        console.log(`downloading image: ${url} ...`);
+        logger.info(`downloading image: ${url} ...`);
 
         return httpUtils.mirrorDownload(url, rootPath)
             .then(r => {
                 return true;
             }).catch(err =>{
-                console.log(`an error occurred while downloading image from ${url} : ${err}`);
+                logger.error(`an error occurred while downloading image from ${url}`, err);
                 return false;
             });
     },
 
     downloadJs = (url:URL):Promise<boolean> =>{
-        console.log(`downloading javascript: ${url} ...`);
+        logger.info(`downloading javascript: ${url} ...`);
 
         return httpUtils.mirrorDownload(url, rootPath)
             .then(r => {
                 return true;
             }).catch(err =>{
-                console.log(`an error occurred while downloading js from ${url} : ${err}`);
+                logger.error(`an error occurred while downloading js from ${url}`, err);
                 return false;
             });
     },
@@ -148,7 +157,7 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
         
         const urlValue = url.toString();
 
-        console.log(`requesting data from url: ${urlValue} ...`);
+        logger.info(`requesting data from url: ${urlValue} ...`);
 
         return rp({
             uri: urlValue
@@ -179,14 +188,14 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
             });
         }
 
-        fs.mkdirSync(rootPath);
-
+        pathUtils.ensurePath(rootPath);
+    },
+    start = async () =>{
         urlsToProcess.enqueue({
             url: startUrl,
             callback: u => processPage(u)
         });
-    },
-    start = async () =>{
+
         let currPromises = new Array<Promise<void>>();
 
         while(urlsToProcess.count() || currPromises.length){
@@ -201,7 +210,7 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
                 const p = item.callback(item.url)
                     .then(result =>{
                         if(true !== result){
-                            console.log(`an error has occurred while processing url '${item.url}' : ${result}`);
+                            logger.error(`an error has occurred while processing url '${item.url}'`, result);
                         }else{
                             processedUrls.add(item.url.pathname.toLowerCase());
                         }
@@ -218,6 +227,8 @@ export async function processSite(startUrl:URL, options:SiteProcessorOptions) {
 
     init();
     await start();
+
+    logger.info(`site ${startUrl} processed!`);
     
     return true;
 };

@@ -1,5 +1,4 @@
 import * as path from 'path';
-import { HashMap } from './hashmap';
 
 export function toURL(value:string):URL{
     try{
